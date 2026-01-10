@@ -1,3 +1,5 @@
+# this script is just for testing purposes
+
 import geopandas as gpd
 from shapely.geometry import Point
 import pandas as pd
