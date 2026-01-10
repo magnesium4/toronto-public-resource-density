@@ -57,9 +57,9 @@ def parse_features(geojson: dict) -> pd.DataFrame:
 
         name = (
             properties.get("location_name")
-            or properties.get("location")
-            or properties.get("alternative_name")
             or properties.get("name")
+            or properties.get("alternative_name")
+            or properties.get("location")
             or "Unknown"
         )
 

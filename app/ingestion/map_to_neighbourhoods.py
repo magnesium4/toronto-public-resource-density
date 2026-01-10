@@ -1,49 +1,32 @@
-import json
-from pathlib import Path
+from shapely.geometry import Point
 import pandas as pd
-from shapely.geometry import Point, shape
 
+from neighbourhoods import load_neighbourhoods_with_area
 from load_washrooms import load_geojson, parse_features
 
 
-RAW_DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
-NEIGHBOURHOODS_FILE = RAW_DATA_DIR / "neighbourhoods.geojson"
-
-
-def load_neighbourhoods() -> list[dict]:
-    if not NEIGHBOURHOODS_FILE.exists():
-        raise FileNotFoundError(f"Neighbourhood file not found at {NEIGHBOURHOODS_FILE}")
-
-    with open(NEIGHBOURHOODS_FILE, "r", encoding="utf-8") as f:
-        geojson = json.load(f)
-
-    return geojson.get("features", [])
-
-
-def map_resources_to_neighbourhoods(
-    resources: pd.DataFrame,
-    neighbourhoods: list[dict],
-) -> pd.DataFrame:
+def map_resources_to_neighbourhoods(resources, neighbourhoods_gdf):
     records = []
 
     for _, row in resources.iterrows():
         point = Point(row["longitude"], row["latitude"])
-        neighbourhood_name = None
+        matched = neighbourhoods_gdf[neighbourhoods_gdf.contains(point)]
 
-        for feature in neighbourhoods:
-            polygon = shape(feature["geometry"])
-            if polygon.contains(point):
-                neighbourhood_name = feature["properties"].get(
-                    "AREA_NAME", "Unknown"
-                )
-                break
+        if not matched.empty:
+            neighbourhood = matched.iloc[0]
+            name = neighbourhood["AREA_NAME"]
+            area_km2 = neighbourhood["area_km2"]
+        else:
+            name = "Unknown"
+            area_km2 = None
 
         records.append(
             {
                 "name": row["name"],
                 "latitude": row["latitude"],
                 "longitude": row["longitude"],
-                "neighbourhood": neighbourhood_name,
+                "neighbourhood": name,
+                "area_km2": area_km2,
             }
         )
 
@@ -51,24 +34,27 @@ def map_resources_to_neighbourhoods(
 
 
 def main():
-    print("Loading washrooms...")
-    washrooms_geojson = load_geojson()
-    washrooms_df = parse_features(washrooms_geojson)
+    washrooms_df = parse_features(load_geojson())
+    neighbourhoods_gdf = load_neighbourhoods_with_area()
+    print(neighbourhoods_gdf.head())
 
-    print("Loading neighbourhood boundaries...")
-    neighbourhoods = load_neighbourhoods()
-
-    print("Mapping washrooms to neighbourhoods...")
-    mapped_df = map_resources_to_neighbourhoods(washrooms_df, neighbourhoods)
-
-    counts = (
-        mapped_df.groupby("neighbourhood")
-        .size()
-        .sort_values(ascending=False)
+    mapped_df = map_resources_to_neighbourhoods(
+        washrooms_df, neighbourhoods_gdf
     )
 
-    print("\nWashrooms per neighbourhood:")
-    print(counts.head(10))
+    print(mapped_df.head())
+
+    density = (
+        mapped_df.groupby("neighbourhood")
+        .agg(
+            resource_count=("name", "count"),
+            area_km2=("area_km2", "first"),
+        )
+        .assign(density=lambda df: df.resource_count / df.area_km2)
+        .sort_values("density", ascending=False)
+    )
+
+    print(density.head(10))
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ This project is a backend service that analyzes the distribution and density of 
 
 **MVP checklist:**
 - [x] Ingest public washroom dataset
+- [x] Map public washrooms to Toronto neighbourhoods using spatial analysis
 - [ ] Ingest childcare facilities dataset
 - [ ] Normalize and store resource data
 - [ ] Map resources to Toronto neighbourhoods
