@@ -10,7 +10,7 @@ This project is a backend service that analyzes the distribution and density of 
 - Docker (planned)
 
 **MVP checklist:**
-- [ ] Ingest public washroom dataset
+- [x] Ingest public washroom dataset
 - [ ] Ingest childcare facilities dataset
 - [ ] Normalize and store resource data
 - [ ] Map resources to Toronto neighbourhoods
