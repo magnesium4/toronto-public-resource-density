@@ -1,3 +1,4 @@
+import geopandas as gpd
 from shapely.geometry import Point
 import pandas as pd
 
@@ -5,50 +6,49 @@ from neighbourhoods import load_neighbourhoods_with_area
 from load_washrooms import load_geojson, parse_features
 
 
-def map_resources_to_neighbourhoods(resources, neighbourhoods_gdf):
-    records = []
+def map_resources_to_neighbourhoods(resources_df, neighbourhoods_gdf):
+    # Convert washrooms to GeoDataFrame
+    geometry = [
+        Point(lon, lat)
+        for lon, lat in zip(resources_df["longitude"], resources_df["latitude"])
+    ]
 
-    for _, row in resources.iterrows():
-        point = Point(row["longitude"], row["latitude"])
-        matched = neighbourhoods_gdf[neighbourhoods_gdf.contains(point)]
+    washrooms_gdf = gpd.GeoDataFrame(
+        resources_df.copy(),
+        geometry=geometry,
+        crs="EPSG:4326",  # lat/lon
+    )
 
-        if not matched.empty:
-            neighbourhood = matched.iloc[0]
-            name = neighbourhood["AREA_NAME"]
-            area_km2 = neighbourhood["area_km2"]
-        else:
-            name = "Unknown"
-            area_km2 = None
+    # Reproject washrooms to match neighbourhood CRS
+    washrooms_gdf = washrooms_gdf.to_crs(neighbourhoods_gdf.crs)
 
-        records.append(
-            {
-                "name": row["name"],
-                "latitude": row["latitude"],
-                "longitude": row["longitude"],
-                "neighbourhood": name,
-                "area_km2": area_km2,
-            }
-        )
+    # Spatial join
+    joined = gpd.sjoin(
+        washrooms_gdf,
+        neighbourhoods_gdf,
+        how="left",
+        predicate="within",
+    )
 
-    return pd.DataFrame(records)
+    return joined
 
 
 def main():
     washrooms_df = parse_features(load_geojson())
     neighbourhoods_gdf = load_neighbourhoods_with_area()
-    print(neighbourhoods_gdf.head())
 
-    mapped_df = map_resources_to_neighbourhoods(
+    mapped_gdf = map_resources_to_neighbourhoods(
         washrooms_df, neighbourhoods_gdf
     )
 
-    print(mapped_df.head())
-
     density = (
-        mapped_df.groupby("neighbourhood")
-        .agg(
-            resource_count=("name", "count"),
-            area_km2=("area_km2", "first"),
+        mapped_gdf.groupby("AREA_NAME")
+        .size()
+        .reset_index(name="resource_count")
+        .merge(
+            neighbourhoods_gdf[["AREA_NAME", "area_km2"]],
+            on="AREA_NAME",
+            how="left",
         )
         .assign(density=lambda df: df.resource_count / df.area_km2)
         .sort_values("density", ascending=False)
