@@ -13,4 +13,4 @@ Data is gathered from Toronto's [Open Data Catalogue](https://open.toronto.ca/ca
 
 **Latest update: Jan 9, 2026**
 
-Files ommited from repo due to their large size.
+Complete files ommited from GitHub repo due to their large size. Partial samples are available.
